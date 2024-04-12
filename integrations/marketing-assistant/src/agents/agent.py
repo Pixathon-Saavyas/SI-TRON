@@ -78,8 +78,6 @@ async def on_message(ctx: Context, sender: str, msg: PostCreation):
                 ctx.storage.set('gemini-'+msg.websiteUrl, json.dumps(reelsAndPostsData))
         else:
             reelsAndPostsData = json.loads(reelsAndPostsData)
-        
-        print(reelsAndPostsData['posts'].length)
         message = "Generating posts<b>WHAT A GREAT MAN</b>"
         await ctx.send(sender, UAgentResponse(message=message,type=UAgentResponseType.FINAL))
 
