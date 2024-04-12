@@ -4,6 +4,7 @@ import google.generativeai as genai
 from uagents import Agent, Context, Protocol, Model
 import os
 import json
+import time
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -13,6 +14,8 @@ APY_ACCESS_TOKEN = os.environ.get("APY_ACCESS_TOKEN")
 IMAGE_CREATION_API_TOKEN = os.environ.get("IMAGE_CREATION_API_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AGENT_MAILBOX_KEY = os.environ.get("AGENT_MAILBOX_KEY")
+FIREBASE_STORAGE_BUCKET = os.environ.get("FIREBASE_STORAGE_BUCKET")
+FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY")
 
 WEBSUMMARISER_API_BASE_URL = 'https://api.apyhub.com/extract/text/webpage?url='
 WEBSUMMARISER_HEADERS = {
@@ -22,7 +25,9 @@ IMAGE_CREATION_API_URL = "https://api-inference.huggingface.co/models/stablediff
 IMAGE_CREATION_HEADERS = {
     "Authorization": f'Bearer {IMAGE_CREATION_API_TOKEN}'
 }
-print(SEED_PHRASE)
+FIREBASE_API_URL = f"https://firebasestorage.googleapis.com/v0/b/{FIREBASE_STORAGE_BUCKET}/o"
+API_KEY_PARAM = f"key={FIREBASE_API_KEY}"
+
 print(f"Your agent's address is: {Agent(seed=SEED_PHRASE).address}")
 localagent = Agent(
     name="Local Agent",
@@ -30,11 +35,33 @@ localagent = Agent(
     mailbox=f"{AGENT_MAILBOX_KEY}@https://agentverse.ai",
 )
 
-# def query(payload):
-# 	response = requests.post(API_URL, headers=headers, json=payload)
-# 	return response.content
+async def uploadToFirebaseStorage(file_data, destination_path, fileType):
+    upload_url = f"{FIREBASE_API_URL}/{destination_path}?{API_KEY_PARAM}"
+    contentType = "image/png"
+    if (fileType == 'video'): 
+        contentType = "video/mp4"
+    headers = {"Content-Type": f'{contentType}'}
+    print(upload_url)
+    response = requests.post(upload_url, headers=headers, data=file_data)
+
+    if response.status_code == 200:
+        download_url = response.json().get("downloadTokens", "")
+        firebase_url = f"{FIREBASE_API_URL}/{destination_path}?alt=media&token={download_url}"
+        return firebase_url
+    else:
+        print("Error uploading to Firebase Storage:", response.content)
+        return None
+
+async def createImageFromText(message, website):
+    response = requests.post(IMAGE_CREATION_API_URL, headers=IMAGE_CREATION_HEADERS, json={"inputs": str(message)})
+    website = website.replace('://','').replace('.','')
+    fileName = website + '(())' + str(time.time()).replace('.','')
+    url = await uploadToFirebaseStorage(response.content, f'{fileName}.png', 'image')
+    return url
+
 class PostCreation(Model):
     websiteUrl: str
+
 
 
 def get_website_description ( websiteUrl):
@@ -73,20 +100,24 @@ async def on_message(ctx: Context, sender: str, msg: PostCreation):
         # await ctx.send(sender, UAgentResponse(message='Starting Work on creation of reels & posts.',type=UAgentResponseType.FINAL))
         reelsAndPostsData = ctx.storage.get('gemini-'+msg.websiteUrl)
         if(reelsAndPostsData is None):
-            reelsAndPostsData = await chat_with_gemini('I want to create 3 reels and 3 illustrated Instagram posts for my company with website '+msg.websiteUrl+'. Can you go through this description of my company and write a description of 3 different reels and also give very detailed description of images to post along with a caption. Also, make sure that the image in the post is not from the company product, as we have to feed this description to another service that generates the image form this image description. Also make sure image is a illustration and easy to produce.Please give this data in JSON string format which is convertable into python dict. Each reels should have minimum 7 scenes in it with background image described and text overlay given.\n\n'+data)
+            reelsAndPostsData = await chat_with_gemini('I want to create 2 reels and 5 illustrated Instagram posts for my company with website '+msg.websiteUrl+'. Can you go through this description of my company and write a description of 3 different reels and also give very detailed description of images to post along with a great professional caption with min 15 words. Also, make sure that the image in the post is not from the company product, as we have to feed this description to another service that generates the image form this image description. Also make sure image is a illustration and easy to produce.Please give this data in JSON string format which is convertable into python dict. Each reels should have minimum 7 scenes in it with background image described and text overlay given. Take this as a format of json in reels give 2 indexs background_image and text_overlay, in posts give 2 indexes caption and detailed description of image to post.  \n\n'+data)
             if(reelsAndPostsData is not None):
                 ctx.storage.set('gemini-'+msg.websiteUrl, json.dumps(reelsAndPostsData))
         else:
             reelsAndPostsData = json.loads(reelsAndPostsData)
-        message = "Generating posts<b>WHAT A GREAT MAN</b>"
-        await ctx.send(sender, UAgentResponse(message=message,type=UAgentResponseType.FINAL))
+        final_message = 'Hello we have created a few posts from your website for you. Please have a look at them.\n\n'
+        post = 1
+        for item in reelsAndPostsData['posts']:
+            url = await createImageFromText(item['detailed_description_of_image_to_post'],msg.websiteUrl)
+            final_message += f'\nPost {post}\n'
+            final_message += f'Image Link - <a href="{url}" target="_blank">Open Image</a>\n'
+            final_message += f'Caption - '+item['caption']+'\n'
+            post = post+1
+        await ctx.send(sender, UAgentResponse(message=final_message,type=UAgentResponseType.FINAL))
 
     except Exception as exc:
         ctx.logger.error(exc)
         await ctx.send(sender, UAgentResponse(message=str(exc), type=UAgentResponseType.ERROR))
-
-# posts = [{'description': 'Image 1: EduWol - Empowering Students, Transforming Education', 'image': {'illustration': 'A vibrant illustration of students and teachers engaged in a dynamic learning environment, surrounded by books, technology, and a supportive community.'}, 'caption': "At EduWol, we believe that every student deserves the opportunity to excel. Our educational ecosystem empowers students with interactive learning experiences, expert mentorship, and tailored courses, fostering collaboration, innovation, and success. Join us and let's transform education together! #EduWol #EducationRevolution #EmpoweringStudents"}, {'description': 'Image 2: EduWol - The Bridge to Your Educational Dreams', 'image': {'illustration': 'An artistic representation of a bridge connecting a group of students to their educational aspirations, with EduWol as the guiding light.'}, 'caption': "Your educational journey doesn't have to be a solitary path. With EduWol as your partner, you have a bridge to your dreams. Our comprehensive courses, expert guidance, and supportive community will help you navigate your academic pursuits and reach new heights. Let's walk the path of success together! #EduWol #BridgeToEducation #DreamBuilders"}, {'description': 'Image 3: EduWol - Igniting the Spark of Discovery', 'image': {'illustration': 'A captivating illustration of a student surrounded by floating books, representing the boundless possibilities of knowledge and the spark of discovery.'}, 'caption': "At EduWol, we believe that learning should be an exhilarating adventure. Our platform ignites the spark of discovery, providing a world of knowledge at your fingertips. Dive into our interactive lessons, engage with expert mentors, and let your curiosity lead the way. Together, let's unlock the boundless potential within you! #EduWol #SparkOfDiscovery #LimitlessLearning"}]
-# createImageFromText(posts[0]["description"]+'. '+posts[0]["image"]["illustration"])
 
 
 localagent.include(post_creation_protocol)
