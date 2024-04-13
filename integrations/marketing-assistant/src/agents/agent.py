@@ -6,6 +6,7 @@ import os
 import json
 import time
 from dotenv import load_dotenv
+from utils import fetchReelsData
 load_dotenv()
 
 post_creation_protocol = Protocol("PostCreation")
@@ -64,58 +65,22 @@ class PostCreation(Model):
     websiteUrl: str
 
 
-
-def get_website_description ( websiteUrl):
-    response = requests.get(WEBSUMMARISER_API_BASE_URL + websiteUrl, headers=WEBSUMMARISER_HEADERS)
-    if response.status_code == 200:
-        data = response.json()
-        return data['data']
-    return ''
-
-async def chat_with_gemini(message):
-    genai.configure(api_key=f'{GEMINI_API_KEY}')
-    model = genai.GenerativeModel('gemini-pro')
-    chat = model.start_chat(history=[])
-    while True:
-        user_message = messagex
-        if user_message.lower() == 'quit':
-            return "Exiting chat session."
-        response = chat.send_message(user_message, stream=False)
-        message = str(response.candidates[0].content.parts[0])
-        data = json.loads(str(message[13:-7]).replace('\\n','').replace('\\','')[1:])
-        return data
-
 @post_creation_protocol.on_message(model=PostCreation, replies=UAgentResponse)
 async def on_message(ctx: Context, sender: str, msg: PostCreation):
     ctx.logger.info(f"Received message from {sender}.")
 
     try:
-        data = ctx.storage.get(msg.websiteUrl)
-        if(data is None):
-            data = get_website_description(msg.websiteUrl)
-            if(data is not None):
-                ctx.storage.set(msg.websiteUrl, data)
-        # else 
-
-        # await ctx.send(sender, UAgentResponse(message='Crawled the website for description.',type=UAgentResponseType.FINAL))
-        # await ctx.send(sender, UAgentResponse(message='Starting Work on creation of reels & posts.',type=UAgentResponseType.FINAL))
-        reelsAndPostsData = ctx.storage.get('gemini-'+msg.websiteUrl)
-        if(reelsAndPostsData is None):
-            reelsAndPostsData = await chat_with_gemini('I want to create 2 reels and 5 illustrated Instagram posts for my company with website '+msg.websiteUrl+'. Can you go through this description of my company and write a description of 3 different reels and also give very detailed description of images to post along with a great professional caption with min 15 words. Also, make sure that the image in the post is not from the company product, as we have to feed this description to another service that generates the image form this image description. Also make sure image is a illustration and easy to produce.Please give this data in JSON string format which is convertable into python dict. Each reels should have minimum 7 scenes in it with background image described and text overlay given. Take this as a format of json in reels give array of scenes in which each scene has 2 indexs background_image and text_overlay, in posts give 2 indexes caption and detailed description of image to post.  \n\n'+data)
-            if(reelsAndPostsData is not None):
-                ctx.storage.set('gemini-'+msg.websiteUrl, json.dumps(reelsAndPostsData))
-        else:
-            reelsAndPostsData = json.loads(reelsAndPostsData)
+        reelsAndPostsData = await fetchReelsData(ctx, msg.websiteUrl)
         final_message = 'Hello we have created a few posts from your website for you. Please have a look at them.\n\n'
         post = 1
-        # for item in reelsAndPostsData['posts']:
-        #     nonCaptionTerm = list(filter(lambda x: x != 'caption', item.keys()))[0]
-        #     # print(nonCaptionTerm)
-        #     url = await createImageFromText(item[nonCaptionTerm],msg.websiteUrl)
-        #     final_message += f'\nPost {post}\n'
-        #     final_message += f'Image Link - <a href="{url}" target="_blank">Open Image</a>\n'
-        #     final_message += f'Caption - '+item['caption']+'\n'
-        #     post = post+1
+        for item in reelsAndPostsData['posts']:
+            nonCaptionTerm = list(filter(lambda x: x != 'caption', item.keys()))[0]
+            # print(nonCaptionTerm)
+            url = await createImageFromText(item[nonCaptionTerm],msg.websiteUrl)
+            final_message += f'\nPost {post}\n'
+            final_message += f'Image Link - <a href="{url}" target="_blank">Open Image</a>\n'
+            final_message += f'Caption - '+item['caption']+'\n'
+            post = post+1
         await ctx.send(sender, UAgentResponse(message=final_message,type=UAgentResponseType.FINAL))
 
     except Exception as exc:

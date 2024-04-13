@@ -1,14 +1,18 @@
 import requests
 import os
+import io
+from mutagen.mp3 import MP3
 from ai_engine import UAgentResponse, UAgentResponseType
 from uagents import Agent, Context, Protocol, Model
 from elevenlabs import save,VoiceSettings,Voice
 from elevenlabs.client import ElevenLabs
+from PIL import Image, ImageDraw, ImageFont
 import time
 from dotenv import load_dotenv
 from moviepy import editor
 import json
 import textwrap
+from utils import fetchReelsData
 load_dotenv()
 
 reel_creation_proto = Protocol("ReelCreation")
@@ -63,6 +67,7 @@ async def createImageFromText(message, textOverlay, fileName):
                   line, font=title_font, fill=(237, 230, 211))
         y_text += line_height
     image.save(f'../assets/images/{fileName}.png')
+    return fileName
 
 async def createScript(script, reelId):
     audio = client.generate(
@@ -73,27 +78,29 @@ async def createScript(script, reelId):
         )
     )
     save(audio,f"../assets/audio/{reelId}.mp3")
+    return f"../assets/audio/{reelId}.mp3"
 
 @reel_creation_proto.on_message(model=ReelCreation, replies={UAgentResponse})
 async def reel_creation(ctx: Context, sender: str, msg: ReelCreation):
-    ctx.logger.info(f"Received booking request from {sender}")
-    ctx.storage.set('s','ss')
+    ctx.logger.info(f"Received message from {sender}.")
     try:
-        reelsAndPostsData = ctx.storage.get('gemini-'+msg.websiteUrl)
-        if(reelsAndPostsData is not None):
-            reelsAndPostsData = json.loads(reelsAndPostsData)
+        reelsAndPostsData = await fetchReelsData(ctx, msg.websiteUrl)
         reels = reelsAndPostsData["reels"]
-        print(reels)
+        reelsUrls = list()
+        urls = ''
+        # print(reels)
         for reel in reels:
             reelId = str(time.time()).replace('.','')
             script = " ".join(scene["text_overlay"] for scene in reel["scenes"])
-            await createScript(script, reelId)
+            audio_path = await createScript(script, reelId)
             serial_of_image = 1
             image_list = list()
             for scene in reel['scenes']:
-                await createImageFromText(scene['background_image'], scene['text_overlay'], f'{reelId}-{serial_of_image}')
+                fileName = await createImageFromText(scene['background_image'], scene['text_overlay'], '{reelId}-{serial_of_image}')
+                image_list.append(Image.open(f'../assets/images/{fileName}.png'))
                 serial_of_image = serial_of_image+1
-                image_list.append(Image.open(f'../assets/images/{reelId}-{serial_of_image}.png'))
+            song = MP3(audio_path)
+            audio_length = round(song.info.length)
             length_audio = audio_length
             duration = int(length_audio / len(image_list)) * 1000
             image_list[0].save(f'../assets/images/{reelId}.gif',
@@ -105,13 +112,16 @@ async def reel_creation(ctx: Context, sender: str, msg: ReelCreation):
             audio = editor.AudioFileClip(f'../assets/audio/{reelId}.mp3')
             final_video = video.set_audio(audio)
             final_video.set_fps(60)
-            final_video.write_videofile(full_video_path)
+            final_video.write_videofile(f'../assets/videos/{reelId}.mp4')
+            video = open(f'../assets/videos/{reelId}.mp4', 'rb').read()
+            url = uploadToFirebaseStorage(video, reelId+'.mp4', 'video')
+            reelsUrls.append(url)
+        urls = "\n".join('<a href="'+url+'">Open Video</a>\n' for url in reelsUrls)
         await ctx.send(
             sender,
             UAgentResponse(
-                message=f"Thanks for choosing an option - {option[msg.user_response]}.",
-                type=UAgentResponseType.FINAL,
-                request_id=msg.request_id
+                message=f"Hello we have created a few reels from your website for you. Please have a look at them.\n\n"+urls,
+                type=UAgentResponseType.FINAL
             )
         )
     except Exception as exc:
