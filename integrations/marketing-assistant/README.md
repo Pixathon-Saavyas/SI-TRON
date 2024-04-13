@@ -34,13 +34,20 @@ This project presents a novel solution that addresses this need by providing a u
 - **Scalability:** Potential for deployment on Fetch.ai facilitates handling larger workloads.
 - Storage: Firebase Storage offers reliable and scalable storage for the generated content.
 
-**How to Use:**
+## Getting Started 🚀
 
-1. Clone the repository: `git clone https://github.com/Pixathon-Saavyas/SI-TRON.git`
-2. Install required dependencies (refer to project documentation for specifics).
-3. Run the application using the provided instructions.
+To use these agents, follow the steps below:
 
+### Step 1: Obtain API Keys 🔑
 
+Before running the agents, you need to obtain the required API keys:
+
+#### Google Gemini API Key
+
+1. Visit the Google AI Studio website: [Google AI Studio](https://makersuite.google.com/app/prompts/new_freeform)
+2. Login using google credentials.
+3. Click on Get API Key and store this key at safe place.
+4. For more information on how to use Gemini API refer [Gemini API Quickstart](https://ai.google.dev/tutorials/python_quickstart#chat_conversations)
 
 
 
