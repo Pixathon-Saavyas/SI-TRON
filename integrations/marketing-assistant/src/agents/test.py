@@ -67,10 +67,10 @@ reelDescription = {
 scenes = reelDescription["scenes"]
 script = " ".join(scene["text_overlay"] for scene in scenes)
 audio = client.generate(
-text=script,
-voice=Voice(
-    voice_id="21m00Tcm4TlvDq8ikWAM",
-    settings=VoiceSettings(stability=1, similarity_boost=1, style=1, use_speaker_boost=True)
+    text=script,
+    voice=Voice(
+        voice_id="21m00Tcm4TlvDq8ikWAM",
+        settings=VoiceSettings(stability=1, similarity_boost=1, style=1, use_speaker_boost=True)
     )
 )
 save(audio,"my-file.mp3")

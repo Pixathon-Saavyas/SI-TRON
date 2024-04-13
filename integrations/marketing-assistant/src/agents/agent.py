@@ -47,6 +47,7 @@ async def uploadToFirebaseStorage(file_data, destination_path, fileType):
     if response.status_code == 200:
         download_url = response.json().get("downloadTokens", "")
         firebase_url = f"{FIREBASE_API_URL}/{destination_path}?alt=media&token={download_url}"
+        print(download_url)
         return firebase_url
     else:
         print("Error uploading to Firebase Storage:", response.content)
@@ -54,7 +55,7 @@ async def uploadToFirebaseStorage(file_data, destination_path, fileType):
 
 async def createImageFromText(message, website):
     response = requests.post(IMAGE_CREATION_API_URL, headers=IMAGE_CREATION_HEADERS, json={"inputs": str(message)})
-    website = website.replace('://','').replace('.','')
+    website = website.replace('://','').replace('.','').replace('/','_')
     fileName = website + '(())' + str(time.time()).replace('.','')
     url = await uploadToFirebaseStorage(response.content, f'{fileName}.png', 'image')
     return url
@@ -76,7 +77,7 @@ async def chat_with_gemini(message):
     model = genai.GenerativeModel('gemini-pro')
     chat = model.start_chat(history=[])
     while True:
-        user_message = message
+        user_message = messagex
         if user_message.lower() == 'quit':
             return "Exiting chat session."
         response = chat.send_message(user_message, stream=False)
@@ -100,19 +101,21 @@ async def on_message(ctx: Context, sender: str, msg: PostCreation):
         # await ctx.send(sender, UAgentResponse(message='Starting Work on creation of reels & posts.',type=UAgentResponseType.FINAL))
         reelsAndPostsData = ctx.storage.get('gemini-'+msg.websiteUrl)
         if(reelsAndPostsData is None):
-            reelsAndPostsData = await chat_with_gemini('I want to create 2 reels and 5 illustrated Instagram posts for my company with website '+msg.websiteUrl+'. Can you go through this description of my company and write a description of 3 different reels and also give very detailed description of images to post along with a great professional caption with min 15 words. Also, make sure that the image in the post is not from the company product, as we have to feed this description to another service that generates the image form this image description. Also make sure image is a illustration and easy to produce.Please give this data in JSON string format which is convertable into python dict. Each reels should have minimum 7 scenes in it with background image described and text overlay given. Take this as a format of json in reels give 2 indexs background_image and text_overlay, in posts give 2 indexes caption and detailed description of image to post.  \n\n'+data)
+            reelsAndPostsData = await chat_with_gemini('I want to create 2 reels and 5 illustrated Instagram posts for my company with website '+msg.websiteUrl+'. Can you go through this description of my company and write a description of 3 different reels and also give very detailed description of images to post along with a great professional caption with min 15 words. Also, make sure that the image in the post is not from the company product, as we have to feed this description to another service that generates the image form this image description. Also make sure image is a illustration and easy to produce.Please give this data in JSON string format which is convertable into python dict. Each reels should have minimum 7 scenes in it with background image described and text overlay given. Take this as a format of json in reels give array of scenes in which each scene has 2 indexs background_image and text_overlay, in posts give 2 indexes caption and detailed description of image to post.  \n\n'+data)
             if(reelsAndPostsData is not None):
                 ctx.storage.set('gemini-'+msg.websiteUrl, json.dumps(reelsAndPostsData))
         else:
             reelsAndPostsData = json.loads(reelsAndPostsData)
         final_message = 'Hello we have created a few posts from your website for you. Please have a look at them.\n\n'
         post = 1
-        for item in reelsAndPostsData['posts']:
-            url = await createImageFromText(item['detailed_description_of_image_to_post'],msg.websiteUrl)
-            final_message += f'\nPost {post}\n'
-            final_message += f'Image Link - <a href="{url}" target="_blank">Open Image</a>\n'
-            final_message += f'Caption - '+item['caption']+'\n'
-            post = post+1
+        # for item in reelsAndPostsData['posts']:
+        #     nonCaptionTerm = list(filter(lambda x: x != 'caption', item.keys()))[0]
+        #     # print(nonCaptionTerm)
+        #     url = await createImageFromText(item[nonCaptionTerm],msg.websiteUrl)
+        #     final_message += f'\nPost {post}\n'
+        #     final_message += f'Image Link - <a href="{url}" target="_blank">Open Image</a>\n'
+        #     final_message += f'Caption - '+item['caption']+'\n'
+        #     post = post+1
         await ctx.send(sender, UAgentResponse(message=final_message,type=UAgentResponseType.FINAL))
 
     except Exception as exc:
