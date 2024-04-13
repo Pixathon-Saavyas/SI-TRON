@@ -50,7 +50,47 @@ Before running the agents, you need to obtain the required API keys:
 4. For more information on how to use Gemini API refer [Gemini API Quickstart](https://ai.google.dev/tutorials/python_quickstart#chat_conversations)
 
 
+# Hugging Face Token
 
+1. Visit the Hugging Face website: [https://huggingface.co/](https://huggingface.co/)
+2. Sign in to your Hugging Face account or create a new one.
+3. Navigate to your profile settings.
+4. Find or generate your API token. If you don't have one, there is usually an option to create a new token.
+5. Copy the generated token; this will be your Hugging Face Token.
+
+# Firebase Storage Bucket, API Key, and Project ID
+
+## Firebase Project
+
+1. Go to the Firebase Console: [https://console.firebase.google.com/](https://console.firebase.google.com/)
+2. Click on "Add project" or select an existing project.
+3. Follow the on-screen instructions to set up your Firebase project.
+
+## Firebase Storage Bucket
+
+1. In the Firebase Console, navigate to the "Storage" section.
+2. Click on "Get Started" if you haven't set up Firebase Storage yet.
+3. Click on "Add a bucket" to create a new storage bucket.
+4. Specify a unique name for your bucket; this will be your Firebase Storage Bucket name.
+
+## Firebase API Key
+
+1. In the Firebase Console, go to "Project settings" (gear icon in the left sidebar).
+2. Under the "General" tab, scroll down to the "Your apps" section.
+3. Find the Web App you want to use and click on the "</>" icon to get the configuration.
+4. Copy the value of the `apiKey` field; this will be your Firebase API Key.
+
+## ElevenLabs API Key
+
+1. Visit https://elevenlabs.io/
+2. Login through new id
+3. Go to profile section through sidebar and copy api key.
+   
+## APYHUB API Key
+
+1. Visit https://apyhub.com/
+2. Login through new id
+3. Go to api keys and create a new key and copy token from there.
 
 **Disclaimer:**
 
